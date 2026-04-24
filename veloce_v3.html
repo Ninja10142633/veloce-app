@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>VELOCE — Gestão de Lucros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<style>
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TOKENS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+:root {
+  --bg:           #09090E;
+  --surface:      #0F0F17;
+  --card:         #14141E;
+  --card-deep:    #111118;
+  --border:       #22222F;
+  --border-light: #2C2C3D;
+  --red:          #C8102E;
+  --red-glow:     rgba(200,16,46,.18);
+  --red-subtle:   rgba(200,16,46,.08);
+  --gold:         #B4891E;
+  --gold-soft:    rgba(180,137,30,.15);
+  --silver:       #8A8FA8;
+  --silver-bright:#B0B5CC;
+  --text:         #E8E2D8;
+  --text-dim:     #9499B0;
+  --text-muted:   #4E5066;
+  --green:        #16A34A;
+  --green-bright: #22C55E;
+  --green-soft:   rgba(22,163,74,.12);
+  --sidebar-w:    252px;
+  --radius-sm:    3px;
+  --radius:       6px;
+  --radius-lg:    10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999; opacity: .6;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SIDEBAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  z-index: 200;
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 180px;
+  background: radial-gradient(ellipse at 50% 110%, var(--red-glow), transparent 65%);
+  pointer-events: none;
+}
+
+.brand { padding: 28px 22px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.brand-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+
+.brand-icon {
+  width: 30px; height: 30px; background: var(--red);
+  clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Bebas Neue'; font-size: 12px; color: #fff; flex-shrink: 0;
+}
+
+.brand-name { font-family: 'Bebas Neue'; font-size: 24px; letter-spacing: 6px; line-height: 1; }
+.brand-name em { color: var(--red); font-style: normal; }
+.brand-tagline { font-size: 8.5px; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; padding-left: 40px; }
+
+/* Connection status dot */
+.conn-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-muted); margin-left: auto; flex-shrink: 0;
+  transition: background .3s;
+}
+.conn-dot.online  { background: var(--green-bright); box-shadow: 0 0 6px var(--green-bright); }
+.conn-dot.offline { background: #F59E0B; }
+.conn-dot.error   { background: var(--red); }
+
+.nav { padding: 14px 0; flex: 1; overflow-y: auto; }
+.nav-label-group { font-size: 8px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-muted); padding: 10px 22px 5px; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 22px; cursor: pointer;
+  transition: all .16s; font-size: 12px; letter-spacing: 1.5px;
+  color: var(--text-dim); border-left: 2px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.025); }
+.nav-item.active { color: var(--text); border-left-color: var(--red); background: var(--red-subtle); }
+.nav-item.active .nav-ic { background: var(--red-glow); color: var(--red); }
+
+.nav-ic {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.04);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; transition: all .16s; flex-shrink: 0;
+}
+
+.nav-badge {
+  margin-left: auto; background: var(--red); color: #fff;
+  font-size: 9px; font-weight: 600; padding: 2px 6px;
+  border-radius: 99px; letter-spacing: .5px; line-height: 1.4;
+  display: none;
+}
+.nav-badge.show { display: block; }
+
+.sidebar-footer {
+  padding: 16px 22px; border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--text-muted); line-height: 1.7; flex-shrink: 0;
+}
+.sidebar-footer strong { color: var(--gold); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TOPBAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(9,9,14,.92);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px; height: 62px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+
+.hamburger {
+  display: none; flex-direction: column; gap: 5px;
+  cursor: pointer; padding: 6px; border: none; background: none;
+  z-index: 201; flex-shrink: 0;
+}
+.hamburger span {
+  display: block; width: 22px; height: 1.5px; background: var(--text);
+  border-radius: 2px; transition: all .25s;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+.page-title { font-family: 'Bebas Neue'; font-size: 19px; letter-spacing: 4px; line-height: 1.1; }
+.page-subtitle { font-size: 9px; letter-spacing: 2.5px; color: var(--text-muted); text-transform: uppercase; }
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Live counter in topbar */
+.live-counter {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(22,163,74,.08); border: 1px solid rgba(22,163,74,.2);
+  padding: 5px 10px; border-radius: var(--radius-sm);
+  font-size: 10px; letter-spacing: 1px; color: var(--green-bright);
+  white-space: nowrap;
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green-bright);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .4; transform: scale(.8); }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.main { margin-left: var(--sidebar-w); flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.content { padding: 26px 28px 64px; flex: 1; }
+
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.72); z-index: 199;
+  backdrop-filter: blur(2px);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BUTTONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: 'Outfit'; font-size: 11px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; border: none; transition: all .2s; white-space: nowrap;
+  padding: 10px 20px; border-radius: var(--radius-sm);
+}
+.btn-primary {
+  background: var(--red); color: #fff;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+  border-radius: 0;
+}
+.btn-primary:hover { background: #E01230; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,16,46,.4); }
+.btn-primary:active { transform: none; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-ghost {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-light);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--silver); background: rgba(255,255,255,.03); }
+
+.btn-danger-sm {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; padding: 5px 8px; font-size: 13px;
+  transition: color .15s; border-radius: var(--radius-sm); line-height: 1;
+}
+.btn-danger-sm:hover { color: var(--red); background: var(--red-subtle); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   KPI GRID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  gap: 14px; margin-bottom: 26px;
+}
+
+.kpi-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  position: relative; overflow: hidden;
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.kpi-card:hover { transform: translateY(-2px); }
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.kpi-card.ar::before { background: var(--red); box-shadow: 0 0 14px var(--red-glow); }
+.kpi-card.ar:hover    { border-color: rgba(200,16,46,.3); box-shadow: 0 8px 32px var(--red-glow); }
+.kpi-card.ag::before  { background: linear-gradient(90deg,var(--gold),#D4A848); }
+.kpi-card.ag:hover    { border-color: rgba(180,137,30,.3); box-shadow: 0 8px 32px var(--gold-soft); }
+.kpi-card.as::before  { background: linear-gradient(90deg,var(--silver),var(--silver-bright)); }
+.kpi-card.av::before  { background: var(--green); }
+.kpi-card.av:hover    { border-color: rgba(22,163,74,.3); box-shadow: 0 8px 32px var(--green-soft); }
+
+.kpi-bg { position: absolute; bottom:-10px; right:8px; font-family:'Bebas Neue'; font-size:78px; line-height:1; color:rgba(255,255,255,.025); pointer-events:none; user-select:none; }
+.kpi-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; font-weight: 500; }
+.kpi-value { font-family: 'Bebas Neue'; font-size: 32px; letter-spacing: 1.5px; line-height: 1; color: var(--text); }
+.kpi-value.cr { color: var(--red); }
+.kpi-value.cg { color: var(--gold); }
+.kpi-value.cv { color: var(--green-bright); }
+.kpi-value.cs { color: var(--silver-bright); }
+.kpi-sub { margin-top: 8px; font-size: 10.5px; color: var(--text-muted); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SECTIONS & PANELS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.section { margin-bottom: 26px; animation: fadeUp .28s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; gap: 12px; flex-wrap: wrap;
+}
+.section-title {
+  font-family: 'Barlow Condensed'; font-size: 14px; font-weight: 600;
+  letter-spacing: 3.5px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::before { content: ''; width: 16px; height: 2px; background: var(--red); flex-shrink: 0; }
+
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PLATFORM CHIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.platform-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px;
+  font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  background: rgba(255,255,255,.05); border: 1px solid var(--border-light);
+  color: var(--text-dim); white-space: nowrap;
+}
+
+/* Cores por plataforma */
+.p-olx         { background:rgba(63,131,248,.1); color:#60a5fa; border-color:rgba(63,131,248,.2); }
+.p-ml          { background:rgba(253,199,0,.1);  color:#fbbf24; border-color:rgba(253,199,0,.2); }
+.p-shopee      { background:rgba(238,77,45,.1);  color:#f87171; border-color:rgba(238,77,45,.2); }
+.p-whatsapp    { background:rgba(37,211,102,.1); color:#4ade80; border-color:rgba(37,211,102,.2); }
+.p-instagram   { background:rgba(214,41,118,.1); color:#f472b6; border-color:rgba(214,41,118,.2); }
+.p-facebook    { background:rgba(24,119,242,.1); color:#818cf8; border-color:rgba(24,119,242,.2); }
+.p-enjoei      { background:rgba(244,63,94,.1);  color:#fb7185; border-color:rgba(244,63,94,.2); }
+.p-vinted      { background:rgba(9,182,109,.1);  color:#34d399; border-color:rgba(9,182,109,.2); }
+.p-tnl         { background:rgba(109,40,217,.1); color:#a78bfa; border-color:rgba(109,40,217,.2); }
+.p-direto      { background:rgba(148,163,184,.1);color:#94a3b8; border-color:rgba(148,163,184,.2); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PLATFORM BAR CHART
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.plat-row { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--border); }
+.plat-row:last-child { border-bottom: none; }
+.plat-name { font-size: 11.5px; font-weight: 500; min-width: 100px; flex-shrink: 0; }
+.plat-bar-wrap { flex: 1; height: 4px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
+.plat-bar { height: 100%; border-radius: 99px; background: var(--red); transition: width .6s ease; }
+.plat-pct { font-family:'Barlow Condensed'; font-size:14px; font-weight:500; min-width: 44px; text-align: right; color: var(--text-dim); }
+.plat-val { font-family:'Bebas Neue'; font-size:16px; letter-spacing:.5px; min-width: 90px; text-align: right; color: var(--text); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FILTERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.filters-bar {
+  padding: 13px 18px; display: flex; align-items: center;
+  gap: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+
+.input-field {
+  background: var(--card-deep); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 11px;
+  font-family: 'Outfit'; font-size: 12px; outline: none;
+  border-radius: var(--radius-sm); transition: border-color .18s; min-width: 0;
+}
+.input-field:focus { border-color: var(--red); }
+.input-field::placeholder { color: var(--text-muted); }
+.input-field.f1 { flex: 1; min-width: 130px; }
+.input-field.wd { width: 135px; flex-shrink: 0; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.tscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; min-width: 680px; }
+thead th {
+  font-family: 'Barlow Condensed'; font-size: 9.5px; letter-spacing: 2.5px;
+  text-transform: uppercase; color: var(--text-muted); padding: 11px 14px;
+  text-align: left; border-bottom: 1px solid var(--border);
+  font-weight: 500; white-space: nowrap; background: var(--card-deep);
+}
+thead th:last-child { text-align: right; }
+tbody tr { border-bottom: 1px solid rgba(34,34,47,.7); transition: background .14s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,.018); }
+tbody td { padding: 12px 14px; font-size: 12.5px; color: var(--text); vertical-align: middle; }
+tbody td:last-child { text-align: right; }
+.td-p { font-weight: 500; font-size: 13px; }
+.td-c { color: var(--text-dim); font-size: 11.5px; }
+.td-m { font-family:'Barlow Condensed'; font-size:16px; letter-spacing:.5px; font-weight:500; }
+.td-green { color: var(--green-bright); }
+.td-red   { color: var(--red); }
+.td-date  { color: var(--text-muted); font-size: 11px; }
+
+.pill {
+  display: inline-flex; align-items: center; padding: 3px 8px;
+  border-radius: 999px; font-size: 9.5px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.pill-g { background: var(--green-soft); color:#4ADE80; border:1px solid rgba(74,222,128,.2); }
+.pill-r { background: var(--red-subtle);  color:#F87171; border:1px solid rgba(248,113,113,.2); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MOBILE CARDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.sale-cards { display: none; }
+.sc { padding: 14px 16px; border-bottom: 1px solid var(--border); transition: background .14s; }
+.sc:last-child { border-bottom: none; }
+.sc:hover { background: rgba(255,255,255,.018); }
+.sc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 7px; }
+.sc-prod { font-weight: 500; font-size: 13px; }
+.sc-pft  { font-family:'Bebas Neue'; font-size: 21px; letter-spacing: 1px; }
+.sc-pft.up { color: var(--green-bright); } .sc-pft.dn { color: var(--red); }
+.sc-bot  { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+.sc-meta { font-size: 11px; color: var(--text-muted); }
+.sc-meta strong { color: var(--text-dim); font-weight: 400; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   EMPTY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.empty { text-align: center; padding: 50px 20px; color: var(--text-muted); }
+.empty-ic { font-size: 34px; margin-bottom: 13px; opacity: .32; }
+.empty-t { font-family:'Barlow Condensed'; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; color: var(--text-dim); }
+.empty-s { font-size: 11.5px; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CLIENT CARDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.clients-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.cc {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 17px 19px; position: relative; overflow: hidden;
+  transition: transform .2s, border-color .2s;
+}
+.cc:hover { transform: translateY(-2px); border-color: var(--border-light); }
+.cc::before { content:''; position:absolute; top:0;left:0;right:0;height:2px; background: linear-gradient(90deg,var(--gold),transparent); opacity:.6; }
+.cc-rank { font-family:'Bebas Neue'; font-size:68px; color:rgba(255,255,255,.03); position:absolute; top:-10px;right:8px; line-height:1; pointer-events:none; user-select:none; }
+.cc-name { font-weight:500; font-size:13.5px; margin-bottom:2px; }
+.cc-count { font-size:10.5px; color:var(--text-muted); margin-bottom:12px; }
+.cc-profit { font-family:'Bebas Neue'; font-size:26px; letter-spacing:1px; color:var(--gold); }
+.cc-bar-bg { height:2px; background:rgba(255,255,255,.06); border-radius:99px; margin-top:9px; }
+.cc-bar    { height:2px; background:var(--gold); border-radius:99px; transition:width .6s ease; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(4,4,8,.88);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 500; display: none;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; animation: overlayFade .22s ease; }
+@keyframes overlayFade { from{opacity:0} to{opacity:1} }
+
+.modal {
+  background: var(--card); border: 1px solid var(--border-light); border-bottom: none;
+  width: 100%; max-width: 540px; max-height: 92dvh;
+  display: flex; flex-direction: column;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  animation: slideUp .28s cubic-bezier(.22,1,.36,1);
+  position: relative; overflow: hidden;
+}
+@keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:none;opacity:1} }
+.modal::before { content:''; position:absolute; top:0;left:0;right:0;height:3px; background: linear-gradient(90deg,var(--red),var(--gold) 60%,transparent); }
+
+.modal-handle { display: none; width:40px;height:4px; background:var(--border-light); border-radius:99px; margin:12px auto 0; flex-shrink:0; }
+.modal-header { padding:20px 22px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.modal-title { font-family:'Bebas Neue'; font-size:21px; letter-spacing:4px; }
+.modal-close { background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--text-dim); cursor:pointer; width:28px;height:28px; border-radius:var(--radius-sm); font-size:13px; display:flex;align-items:center;justify-content:center; transition:all .14s; }
+.modal-close:hover { color:var(--text); background:rgba(255,255,255,.1); }
+
+.modal-body { padding:18px 22px; overflow-y:auto; flex:1; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+.span2 { grid-column: span 2; }
+
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-label { font-size:9px; letter-spacing:2.5px; text-transform:uppercase; color:var(--text-muted); font-weight:600; }
+
+.form-input {
+  background:var(--card-deep); border:1px solid var(--border);
+  color:var(--text); padding:10px 12px;
+  font-family:'Outfit'; font-size:13px; outline:none;
+  border-radius:var(--radius-sm); transition:border-color .18s,box-shadow .18s; width:100%;
+}
+.form-input:focus { border-color:var(--red); box-shadow:0 0 0 2px var(--red-glow); }
+.form-input::placeholder { color:var(--text-muted); }
+.form-input::-webkit-inner-spin-button,.form-input::-webkit-outer-spin-button { -webkit-appearance:none; }
+
+/* Platform select */
+.plat-select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%234E5066' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 30px; cursor: pointer; }
+.plat-select option { background: #1A1A26; color: var(--text); }
+
+/* Profit preview */
+.pp {
+  margin-top:13px; background:var(--card-deep); border:1px solid var(--border);
+  border-left:3px solid var(--green); border-radius:var(--radius-sm);
+  padding:13px 15px; display:flex; align-items:center; justify-content:space-between;
+  transition:border-left-color .2s;
+}
+.pp.neg   { border-left-color:var(--red); }
+.pp.empty { border-left-color:var(--border); }
+.pp-label { font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:2px; }
+.pp-mg    { font-size:10.5px;color:var(--text-muted);margin-top:3px; }
+.pp-val   { font-family:'Bebas Neue';font-size:28px;letter-spacing:1px;color:var(--green-bright); }
+.pp-val.neg   { color:var(--red); }
+.pp-val.empty { color:var(--text-muted); }
+
+.modal-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; flex-shrink:0; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BOTTOM NAV
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.bottom-nav { display:none; position:fixed; bottom:0;left:0;right:0; background:var(--surface); border-top:1px solid var(--border); z-index:150; padding-bottom:env(safe-area-inset-bottom); }
+.bnav-inner { display:flex; height:56px; }
+.bnav-item  { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;transition:all .14s;color:var(--text-muted);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;font-weight:500;border-top:2px solid transparent; }
+.bnav-item:hover { color:var(--text-dim); }
+.bnav-item.active { color:var(--red); border-top-color:var(--red); }
+.bnav-ic { font-size:16px; line-height:1; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TOAST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.toast-wrap { position:fixed; bottom:24px;right:24px; z-index:9990; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast { background:var(--card); border:1px solid var(--border-light); border-left:3px solid var(--green); padding:11px 16px; font-size:12px; border-radius:var(--radius-sm); animation:toastIn .3s ease; pointer-events:all; max-width:280px; box-shadow:0 8px 28px rgba(0,0,0,.5); }
+.toast.err { border-left-color:var(--red); }
+@keyframes toastIn  { from{transform:translateX(110%);opacity:0} to{transform:none;opacity:1} }
+@keyframes toastOut { to{transform:translateX(110%);opacity:0} }
+.toast.leaving { animation:toastOut .3s ease forwards; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DIVIDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.divider { width:100%; height:1px; background:linear-gradient(90deg,var(--red),var(--border) 60%,transparent); opacity:.28; margin:22px 0; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SYNC LOADER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+.loading-bar { height:2px; background:var(--red); position:fixed; top:0;left:0; z-index:9998; transition:width .3s,opacity .4s; opacity:0; }
+.loading-bar.active { opacity:1; animation:loading 1.2s ease-in-out infinite; }
+@keyframes loading { 0%{width:0;left:0} 50%{width:70%;left:0} 100%{width:0;left:100%} }
+
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-light); border-radius:99px; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RESPONSIVE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@media (max-width:1100px) {
+  .kpi-grid { grid-template-columns:repeat(2,1fr); }
+  .clients-grid { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:860px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar { transform:translateX(-252px); width:252px; box-shadow:8px 0 40px rgba(0,0,0,.6); }
+  .sidebar.open { transform:translateX(0); }
+  .sidebar-overlay.open { display:block; }
+  .main { margin-left:0; }
+  .hamburger { display:flex; }
+  .content { padding:18px 18px 78px; }
+  .topbar { padding:0 16px; }
+  .toast-wrap { bottom:70px; right:12px; }
+  .live-counter { display:none; }
+}
+@media (max-width:640px) {
+  .kpi-grid { grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi-value { font-size:26px; }
+  .kpi-card  { padding:14px; }
+  .clients-grid { grid-template-columns:1fr; }
+  .tscroll { display:none; }
+  .sale-cards { display:block; }
+  .form-grid { grid-template-columns:1fr; }
+  .span2 { grid-column:span 1; }
+  .modal { max-height:96dvh; border-radius:16px 16px 0 0; }
+  .modal-handle { display:block; }
+  .modal-header { padding:13px 18px 11px; }
+  .modal-body   { padding:14px 18px; }
+  .modal-footer { padding:12px 18px; }
+  .bottom-nav { display:flex; flex-direction:column; }
+  .filters-bar { padding:10px 13px; gap:8px; }
+  .input-field.wd { width:100%; }
+  .topbar { height:54px; }
+}
+@media (max-width:400px) {
+  .kpi-grid { grid-template-columns:1fr; }
+  .content  { padding:14px 12px 78px; }
+}
+</style>
+</head>
+<body>
+
+<div class="loading-bar" id="loading-bar"></div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-logo">
+      <div class="brand-icon">V</div>
+      <div class="brand-name">VEL<em>O</em>CE</div>
+      <div class="conn-dot" id="conn-dot" title="Status da conexão"></div>
+    </div>
+    <div class="brand-tagline">Gestão de Lucros</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-label-group">Principal</div>
+    <div class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">
+      <span class="nav-ic">◈</span><span>Dashboard</span>
+    </div>
+    <div class="nav-item" data-section="vendas" onclick="showSection('vendas')">
+      <span class="nav-ic">◉</span><span>Vendas</span>
+      <span class="nav-badge" id="badge-vendas">0</span>
+    </div>
+    <div class="nav-item" data-section="plataformas" onclick="showSection('plataformas')">
+      <span class="nav-ic">◐</span><span>Plataformas</span>
+    </div>
+    <div class="nav-item" data-section="clientes" onclick="showSection('clientes')">
+      <span class="nav-ic">◎</span><span>Clientes</span>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    Dados salvos na <strong>nuvem</strong><br>
+    via <strong>Supabase</strong>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" id="hamburger" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </button>
+      <div>
+        <div class="page-title"  id="page-title">Dashboard</div>
+        <div class="page-subtitle" id="page-sub">Visão Geral</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-counter" id="live-counter" title="Atualização em tempo real">
+        <div class="live-dot"></div>
+        <span id="live-txt">0 vendas</span>
+      </div>
+      <button class="btn btn-primary" onclick="openModal()">+ Venda</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ─── DASHBOARD ─── -->
+    <div id="section-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi-card ar"><div class="kpi-bg">R$</div><div class="kpi-label">Lucro Total</div><div class="kpi-value cr" id="k-lucro">R$ 0,00</div><div class="kpi-sub" id="k-lucro-s">—</div></div>
+        <div class="kpi-card ag"><div class="kpi-bg">$</div> <div class="kpi-label">Receita Total</div><div class="kpi-value cg" id="k-receita">R$ 0,00</div><div class="kpi-sub" id="k-rec-s">—</div></div>
+        <div class="kpi-card as"><div class="kpi-bg">#</div> <div class="kpi-label">Total de Vendas</div><div class="kpi-value cs" id="k-qtd">0</div><div class="kpi-sub" id="k-qtd-s">Transações</div></div>
+        <div class="kpi-card av"><div class="kpi-bg">%</div> <div class="kpi-label">Margem Média</div><div class="kpi-value cv" id="k-margem">0%</div><div class="kpi-sub">Lucro ÷ Receita</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">Últimas Vendas</div>
+          <button class="btn btn-ghost" onclick="showSection('vendas')">Ver todas →</button>
+        </div>
+        <div class="panel" id="dash-panel"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">Top Clientes</div>
+          <button class="btn btn-ghost" onclick="showSection('clientes')">Ver todos →</button>
+        </div>
+        <div class="clients-grid" id="clients-dash"></div>
+      </div>
+    </div>
+
+    <!-- ─── VENDAS ─── -->
+    <div id="section-vendas" style="display:none">
+      <div class="section">
+        <div class="panel">
+          <div class="filters-bar">
+            <input type="text"  class="input-field f1" id="fs" placeholder="🔍 Produto, cliente ou plataforma…" oninput="renderVendas()">
+            <input type="date"  class="input-field wd" id="fd" onchange="renderVendas()">
+            <input type="date"  class="input-field wd" id="ft" onchange="renderVendas()">
+            <select            class="input-field plat-select" id="fp" onchange="renderVendas()" style="width:140px;flex-shrink:0">
+              <option value="">Todas plataformas</option>
+            </select>
+            <button class="btn btn-ghost" onclick="clearFilters()">Limpar</button>
+          </div>
+          <div class="tscroll">
+            <table>
+              <thead><tr>
+                <th>Produto</th><th>Cliente</th><th>Plataforma</th><th>Qtd</th>
+                <th>Compra</th><th>Venda</th><th>Lucro</th><th>Margem</th><th>Data</th><th></th>
+              </tr></thead>
+              <tbody id="vtbody"></tbody>
+            </table>
+          </div>
+          <div class="sale-cards" id="vcards"></div>
+          <div class="empty" id="vempty" style="display:none">
+            <div class="empty-ic">◉</div><div class="empty-t">Nenhuma venda encontrada</div>
+            <div class="empty-s">Ajuste os filtros ou registre uma venda</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── PLATAFORMAS ─── -->
+    <div id="section-plataformas" style="display:none">
+      <div class="section">
+        <div class="kpi-grid" id="plat-kpis"></div>
+        <div class="section-header">
+          <div class="section-title">Lucro por Plataforma</div>
+        </div>
+        <div class="panel" id="plat-panel"></div>
+      </div>
+    </div>
+
+    <!-- ─── CLIENTES ─── -->
+    <div id="section-clientes" style="display:none">
+      <div class="section">
+        <div class="section-header"><div class="section-title">Ranking de Clientes</div></div>
+        <div class="clients-grid" id="clients-full"></div>
+        <div class="empty panel" id="clients-empty" style="display:none;margin-top:14px">
+          <div class="empty-ic">◎</div><div class="empty-t">Nenhum cliente ainda</div>
+          <div class="empty-s">Registre vendas para ver o ranking</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ═══ BOTTOM NAV ═══ -->
+<div class="bottom-nav">
+  <div class="bnav-inner">
+    <div class="bnav-item active" data-section="dashboard"    onclick="showSection('dashboard')">  <span class="bnav-ic">◈</span><span>Início</span></div>
+    <div class="bnav-item"       data-section="vendas"        onclick="showSection('vendas')">    <span class="bnav-ic">◉</span><span>Vendas</span></div>
+    <div class="bnav-item"       data-section="plataformas"   onclick="showSection('plataformas')"><span class="bnav-ic">◐</span><span>Canais</span></div>
+    <div class="bnav-item"       data-section="clientes"      onclick="showSection('clientes')">  <span class="bnav-ic">◎</span><span>Clientes</span></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div class="modal-overlay" id="modal-overlay" onclick="overlayClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Nova Venda</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group span2">
+          <label class="form-label">Produto / Item</label>
+          <input class="form-input" id="f-produto" type="text" placeholder="Ex: Tênis Nike Air Max" autocomplete="off" oninput="calcPrev()">
+        </div>
+        <div class="form-group span2">
+          <label class="form-label">Cliente</label>
+          <input class="form-input" id="f-cliente" type="text" placeholder="Nome do comprador" list="dl-clientes" autocomplete="off">
+          <datalist id="dl-clientes"></datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Preço de Compra (R$)</label>
+          <input class="form-input" id="f-compra" type="number" placeholder="0,00" min="0" step="0.01" oninput="calcPrev()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Preço de Venda (R$)</label>
+          <input class="form-input" id="f-venda"  type="number" placeholder="0,00" min="0" step="0.01" oninput="calcPrev()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantidade</label>
+          <input class="form-input" id="f-qtd"  type="number" placeholder="1" min="1" value="1" oninput="calcPrev()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Plataforma de Venda</label>
+          <select class="form-input plat-select" id="f-plat">
+            <option>Direto</option>
+            <option>WhatsApp</option>
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>OLX</option>
+            <option>Mercado Livre</option>
+            <option>Shopee</option>
+            <option>Enjoei</option>
+            <option>Vinted</option>
+            <option>Tonolucro</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input class="form-input" id="f-data" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observação (opcional)</label>
+          <input class="form-input" id="f-obs" type="text" placeholder="Ex: Pago via Pix">
+        </div>
+      </div>
+      <div class="pp empty" id="pp">
+        <div>
+          <div class="pp-label">Lucro estimado</div>
+          <div class="pp-mg" id="pp-mg">—</div>
+        </div>
+        <div class="pp-val empty" id="pp-val">R$ —</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveVenda()">Registrar Venda</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+'use strict';
+
+/* ── Supabase ── */
+const SUPA_URL = 'https://cysxzywuukjzviahykmq.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5c3h6eXd1dWtqenZpYWh5a21xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5OTk2ODEsImV4cCI6MjA5MjU3NTY4MX0.3TF98_HeEGA0EjTH5btgSSGqRQvsXXyhV9ACPx48hXE';
+
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+/* ── State ── */
+let DB = [];
+let isOnline = false;
+
+/* ── Platforms map ── */
+const PLAT_CSS = {
+  'OLX':'p-olx','Mercado Livre':'p-ml','Shopee':'p-shopee',
+  'WhatsApp':'p-whatsapp','Instagram':'p-instagram','Facebook':'p-facebook',
+  'Enjoei':'p-enjoei','Vinted':'p-vinted','Tonolucro':'p-tnl','Direto':'p-direto',
+};
+const platClass = (p) => PLAT_CSS[p] || 'p-direto';
+const platEmoji = (p) => ({'OLX':'🔵','Mercado Livre':'🟡','Shopee':'🟠','WhatsApp':'🟢','Instagram':'💜','Facebook':'🔷','Enjoei':'🔴','Vinted':'🟩','Tonolucro':'🟣','Direto':'⚪'})[p] || '⚫';
+
+/* ── Formatters ── */
+const fmtR = (n) => {
+  const a = Math.abs(n), s = a.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (n < 0 ? '– R$ ' : 'R$ ') + s;
+};
+const fmtP = (n) => n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%';
+const fmtD = (s) => { if (!s) return '—'; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; };
+const today = () => new Date().toISOString().split('T')[0];
+const profit  = (v) => (parseFloat(v.venda) - parseFloat(v.compra)) * parseInt(v.qtd||1);
+const revenue = (v) => parseFloat(v.venda) * parseInt(v.qtd||1);
+const margin  = (v) => { const r = revenue(v); return r ? (profit(v)/r)*100 : 0; };
+
+/* ── Loading bar ── */
+const lb = document.getElementById('loading-bar');
+const setLoading = (v) => { lb.className = 'loading-bar' + (v ? ' active' : ''); };
+
+/* ── Connection ── */
+function setConn(state) {
+  isOnline = state === 'online';
+  const dot = document.getElementById('conn-dot');
+  dot.className = 'conn-dot ' + state;
+  dot.title = {online:'Conectado ao Supabase', offline:'Sem conexão — usando cache local', error:'Erro na conexão'}[state] || '';
+}
+
+/* ── Toast ── */
+function toast(msg, isErr=false) {
+  const w = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  w.appendChild(el);
+  setTimeout(() => { el.classList.add('leaving'); el.addEventListener('animationend', () => el.remove()); }, 2800);
+}
+
+/* ── Sidebar ── */
+function toggleSidebar() {
+  const s = document.getElementById('sidebar'), h = document.getElementById('hamburger'), o = document.getElementById('sidebar-overlay');
+  const open = s.classList.toggle('open');
+  h.classList.toggle('open', open);
+  o.classList.toggle('open', open);
+}
+function closeSidebar() {
+  ['sidebar','hamburger','sidebar-overlay'].forEach(id => document.getElementById(id)?.classList.remove('open'));
+}
+
+/* ── Sections ── */
+const SECS = ['dashboard','vendas','plataformas','clientes'];
+const TITLES = { dashboard:['Dashboard','Visão Geral'], vendas:['Vendas','Histórico Completo'], plataformas:['Plataformas','Análise por Canal'], clientes:['Clientes','Ranking por Lucro'] };
+
+function showSection(n) {
+  SECS.forEach(s => document.getElementById('section-'+s).style.display = s===n ? 'block':'none');
+  document.querySelectorAll('.nav-item,.bnav-item').forEach(el => el.classList.toggle('active', el.dataset.section===n));
+  const [t,s] = TITLES[n];
+  document.getElementById('page-title').textContent = t;
+  document.getElementById('page-sub').textContent   = s;
+  if (n==='vendas')      renderVendas();
+  if (n==='plataformas') renderPlataformas();
+  if (n==='clientes')    renderClients();
+  closeSidebar();
+}
+
+/* ── Modal ── */
+function openModal() {
+  const mo = document.getElementById('modal-overlay');
+  mo.style.display = 'flex';
+  setTimeout(() => mo.classList.add('open'), 10);
+  document.getElementById('f-data').value = today();
+  document.getElementById('f-qtd').value  = '1';
+  refreshDatalist();
+  setTimeout(() => document.getElementById('f-produto').focus(), 260);
+}
+function closeModal() {
+  const mo = document.getElementById('modal-overlay');
+  mo.classList.remove('open');
+  setTimeout(() => { mo.style.display='none'; resetForm(); }, 240);
+}
+function overlayClick(e) { if (e.target===document.getElementById('modal-overlay')) closeModal(); }
+function resetForm() {
+  ['f-produto','f-cliente','f-compra','f-venda','f-obs'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('f-qtd').value  = '1';
+  document.getElementById('f-plat').value = 'Direto';
+  calcPrev();
+}
+function refreshDatalist() {
+  const dl = document.getElementById('dl-clientes');
+  dl.innerHTML = [...new Set(DB.map(v=>v.cliente).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('');
+}
+
+/* Profit preview */
+function calcPrev() {
+  const c = parseFloat(document.getElementById('f-compra').value);
+  const v = parseFloat(document.getElementById('f-venda').value);
+  const q = parseInt(document.getElementById('f-qtd').value) || 1;
+  const pv = document.getElementById('pp-val'), pm = document.getElementById('pp-mg'), pp = document.getElementById('pp');
+  if (isNaN(c) && isNaN(v)) { pv.textContent='R$ —';pv.className='pp-val empty';pm.textContent='—';pp.className='pp empty'; return; }
+  const cc = isNaN(c)?0:c, vv = isNaN(v)?0:v;
+  const luc = (vv-cc)*q, rev = vv*q, marg = rev?(luc/rev)*100:0;
+  pv.textContent = fmtR(luc);
+  pm.textContent = 'Margem: ' + fmtP(marg);
+  pv.className = 'pp-val' + (luc<0?' neg':'');
+  pp.className = 'pp' + (luc<0?' neg':'');
+}
+
+/* ── Save ── */
+async function saveVenda() {
+  const produto = document.getElementById('f-produto').value.trim();
+  const cliente = document.getElementById('f-cliente').value.trim();
+  const compra  = parseFloat(document.getElementById('f-compra').value);
+  const venda   = parseFloat(document.getElementById('f-venda').value);
+  const qtd     = Math.max(1, parseInt(document.getElementById('f-qtd').value)||1);
+  const data    = document.getElementById('f-data').value || today();
+  const plat    = document.getElementById('f-plat').value || 'Direto';
+  const obs     = document.getElementById('f-obs').value.trim();
+
+  if (!produto)        { toast('Informe o produto',true); return; }
+  if (!cliente)        { toast('Informe o cliente',true); return; }
+  if (isNaN(compra))   { toast('Informe o preço de compra',true); return; }
+  if (isNaN(venda))    { toast('Informe o preço de venda',true); return; }
+  if (compra<0||venda<0) { toast('Preços devem ser positivos',true); return; }
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  setLoading(true);
+
+  try {
+    const row = { produto, cliente, compra, venda, qtd, data, plataforma: plat, obs: obs||null };
+    const { data: saved, error } = await sb.from('vendas').insert([row]).select().single();
+    if (error) throw error;
+
+    // Optimistic: add locally
+    DB.unshift({ ...saved, id: saved.id });
+    renderAll();
+    closeModal();
+    toast('Venda registrada!');
+    updateLiveCounter();
+  } catch(e) {
+    console.error(e);
+    toast('Erro ao salvar: ' + (e.message || 'verifique a conexão'), true);
+  } finally {
+    btn.disabled = false;
+    setLoading(false);
+  }
+}
+
+/* ── Delete ── */
+async function deleteVenda(id) {
+  if (!confirm('Remover esta venda?')) return;
+  setLoading(true);
+  try {
+    const { error } = await sb.from('vendas').delete().eq('id', id);
+    if (error) throw error;
+    DB = DB.filter(v => v.id !== id);
+    renderAll();
+    renderVendas();
+    toast('Venda removida');
+    updateLiveCounter();
+  } catch(e) {
+    toast('Erro ao remover', true);
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* ── Fetch ── */
+async function fetchAll() {
+  setLoading(true);
+  try {
+    const { data, error } = await sb.from('vendas').select('*').order('created_at', {ascending: false});
+    if (error) throw error;
+    DB = data || [];
+    setConn('online');
+    renderAll();
+    updateLiveCounter();
+    populatePlatFilter();
+  } catch(e) {
+    console.error(e);
+    setConn('error');
+    toast('Sem conexão — modo offline', true);
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* ── Realtime ── */
+function setupRealtime() {
+  sb.channel('vendas-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas' }, (payload) => {
+      if (payload.eventType === 'INSERT') {
+        // Avoid duplicate (already added optimistically)
+        if (!DB.find(v => v.id === payload.new.id)) {
+          DB.unshift(payload.new);
+        }
+      } else if (payload.eventType === 'DELETE') {
+        DB = DB.filter(v => v.id !== payload.old.id);
+      } else if (payload.eventType === 'UPDATE') {
+        const idx = DB.findIndex(v => v.id === payload.new.id);
+        if (idx !== -1) DB[idx] = payload.new;
+      }
+      renderAll();
+      updateLiveCounter();
+      populatePlatFilter();
+    })
+    .subscribe((status) => {
+      setConn(status === 'SUBSCRIBED' ? 'online' : 'offline');
+    });
+}
+
+/* ── Live counter ── */
+function updateLiveCounter() {
+  const el = document.getElementById('live-txt');
+  const n  = DB.length;
+  el.textContent = n + ' venda' + (n !== 1 ? 's' : '');
+  // badge
+  const b = document.getElementById('badge-vendas');
+  b.textContent = n;
+  b.classList.toggle('show', n > 0);
+}
+
+/* ── Populate platform filter ── */
+function populatePlatFilter() {
+  const sel = document.getElementById('fp');
+  const cur = sel.value;
+  const plats = [...new Set(DB.map(v => v.plataforma).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todas plataformas</option>' + plats.map(p => `<option value="${esc(p)}" ${cur===p?'selected':''}>${p}</option>`).join('');
+}
+
+/* ── Render All ── */
+function renderAll() { renderDashboard(); renderClientsCard(); }
+
+/* ── Dashboard ── */
+function renderDashboard() {
+  const tl = DB.reduce((a,v) => a+profit(v), 0);
+  const tr = DB.reduce((a,v) => a+revenue(v), 0);
+  const tc = DB.reduce((a,v) => a+parseFloat(v.compra)*parseInt(v.qtd||1), 0);
+  const mg = tr ? (tl/tr)*100 : 0;
+
+  document.getElementById('k-lucro').textContent  = fmtR(tl);
+  document.getElementById('k-receita').textContent = fmtR(tr);
+  document.getElementById('k-qtd').textContent     = DB.length;
+  document.getElementById('k-margem').textContent  = fmtP(mg);
+  document.getElementById('k-lucro-s').textContent  = DB.length ? `Custo total: ${fmtR(tc)}` : 'Aguardando vendas';
+  document.getElementById('k-rec-s').textContent   = DB.length ? `${DB.length} venda${DB.length!==1?'s':''}` : '—';
+  document.getElementById('k-qtd-s').textContent   = DB.length===1 ? '1 transação' : `${DB.length} transações`;
+
+  renderDashPanel();
+  renderClientsCard();
+}
+
+function renderDashPanel() {
+  const panel = document.getElementById('dash-panel');
+  const recent = DB.slice(0, 6);
+  if (!recent.length) {
+    panel.innerHTML = `<div class="empty"><div class="empty-ic">◈</div><div class="empty-t">Nenhuma venda ainda</div><div class="empty-s">Toque em "+ Venda" para começar</div></div>`;
+    return;
+  }
+  const rows = recent.map(v => {
+    const p = profit(v), cls = p>=0?'td-green':'td-red';
+    return `<tr>
+      <td class="td-p">${esc(v.produto)}</td>
+      <td class="td-c">${esc(v.cliente)}</td>
+      <td><span class="platform-chip ${platClass(v.plataforma)}">${platEmoji(v.plataforma)} ${esc(v.plataforma||'—')}</span></td>
+      <td class="td-m">${fmtR(revenue(v))}</td>
+      <td class="td-m ${cls}">${fmtR(p)}</td>
+      <td class="td-date">${fmtD(v.data)}</td>
+    </tr>`;
+  }).join('');
+
+  const cards = recent.map(v => saleCard(v)).join('');
+
+  panel.innerHTML = `
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Produto</th><th>Cliente</th><th>Canal</th><th>Venda</th><th>Lucro</th><th>Data</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="sale-cards">${cards}</div>`;
+}
+
+function saleCard(v, withDelete=false) {
+  const p = profit(v), cls = p>=0?'up':'dn';
+  return `<div class="sc">
+    <div class="sc-top">
+      <div class="sc-prod">${esc(v.produto)}</div>
+      <div class="sc-pft ${cls}">${fmtR(p)}</div>
+    </div>
+    <div class="sc-bot">
+      <div class="sc-meta"><strong>${esc(v.cliente)}</strong> · <span class="platform-chip ${platClass(v.plataforma)}" style="font-size:8.5px;padding:1px 6px">${esc(v.plataforma||'—')}</span> · ${fmtD(v.data)}</div>
+      ${withDelete ? `<button class="btn-danger-sm" onclick="deleteVenda(${v.id})">✕</button>` : ''}
+    </div>
+  </div>`;
+}
+
+/* ── Vendas ── */
+function renderVendas() {
+  const sq = (document.getElementById('fs')?.value||'').toLowerCase();
+  const fd = document.getElementById('fd')?.value||'';
+  const ft = document.getElementById('ft')?.value||'';
+  const fp = document.getElementById('fp')?.value||'';
+
+  const fil = DB.filter(v => {
+    const q = !sq || (v.produto+' '+v.cliente+' '+(v.plataforma||'')).toLowerCase().includes(sq);
+    const f = !fd || v.data>=fd;
+    const t = !ft || v.data<=ft;
+    const p = !fp || v.plataforma===fp;
+    return q&&f&&t&&p;
+  });
+
+  const tbody  = document.getElementById('vtbody');
+  const vcards = document.getElementById('vcards');
+  const vempty = document.getElementById('vempty');
+
+  if (!fil.length) { tbody.innerHTML=''; vcards.innerHTML=''; vempty.style.display='block'; return; }
+  vempty.style.display = 'none';
+
+  tbody.innerHTML = fil.map(v => {
+    const p=profit(v), m=margin(v), pcls=p>=0?'td-green':'td-red', pill=p>=0?'pill-g':'pill-r';
+    return `<tr>
+      <td class="td-p">${esc(v.produto)}</td>
+      <td class="td-c">${esc(v.cliente)}</td>
+      <td><span class="platform-chip ${platClass(v.plataforma)}">${platEmoji(v.plataforma)} ${esc(v.plataforma||'—')}</span></td>
+      <td>${v.qtd}</td>
+      <td class="td-m">${fmtR(parseFloat(v.compra))}</td>
+      <td class="td-m">${fmtR(parseFloat(v.venda))}</td>
+      <td class="td-m ${pcls}">${fmtR(p)}</td>
+      <td><span class="pill ${pill}">${fmtP(m)}</span></td>
+      <td class="td-date">${fmtD(v.data)}</td>
+      <td><button class="btn-danger-sm" onclick="deleteVenda(${v.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  vcards.innerHTML = fil.map(v => saleCard(v, true)).join('');
+}
+
+function clearFilters() {
+  ['fs','fd','ft','fp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  renderVendas();
+}
+
+/* ── Plataformas ── */
+function renderPlataformas() {
+  const map = {};
+  DB.forEach(v => {
+    const p = v.plataforma || 'Direto';
+    if (!map[p]) map[p] = { lucro:0, receita:0, qtd:0, vendas:0 };
+    map[p].lucro   += profit(v);
+    map[p].receita += revenue(v);
+    map[p].qtd     += parseInt(v.qtd||1);
+    map[p].vendas  += 1;
+  });
+
+  const sorted = Object.entries(map).sort((a,b) => b[1].lucro - a[1].lucro);
+  const maxLuc = sorted[0]?.[1].lucro || 0;
+  const totalLuc = sorted.reduce((a,[,s]) => a+s.lucro, 0);
+
+  // mini KPIs (top 4 platforms)
+  const kpiGrid = document.getElementById('plat-kpis');
+  const kpiColors = ['ar cr','ag cg','as cs','av cv'];
+  kpiGrid.innerHTML = sorted.slice(0,4).map(([name, s], i) => {
+    const [ac, vc] = kpiColors[i].split(' ');
+    return `<div class="kpi-card ${ac}">
+      <div class="kpi-bg">${platEmoji(name)}</div>
+      <div class="kpi-label">${name}</div>
+      <div class="kpi-value ${vc}">${fmtR(s.lucro)}</div>
+      <div class="kpi-sub">${s.vendas} venda${s.vendas!==1?'s':''}</div>
+    </div>`;
+  }).join('');
+
+  // Bar list
+  const panel = document.getElementById('plat-panel');
+  if (!sorted.length) {
+    panel.innerHTML = `<div class="empty"><div class="empty-ic">◐</div><div class="empty-t">Nenhuma venda ainda</div></div>`;
+    return;
+  }
+
+  panel.innerHTML = sorted.map(([name, s]) => {
+    const pct = maxLuc > 0 ? Math.max(0, (s.lucro/maxLuc)*100) : 0;
+    const share = totalLuc !== 0 ? Math.abs(s.lucro/totalLuc*100) : 0;
+    const barColor = s.lucro >= 0 ? 'var(--red)' : 'var(--text-muted)';
+    return `<div class="plat-row">
+      <div class="plat-name">
+        <span class="platform-chip ${platClass(name)}">${platEmoji(name)} ${esc(name)}</span>
+      </div>
+      <div class="plat-bar-wrap"><div class="plat-bar" style="width:${pct}%;background:${barColor}"></div></div>
+      <div class="plat-pct" style="color:var(--text-dim)">${fmtP(share)}</div>
+      <div class="plat-val">${fmtR(s.lucro)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Clients ── */
+function getClientsRanked() {
+  const map = {};
+  DB.forEach(v => {
+    if (!map[v.cliente]) map[v.cliente] = { nome:v.cliente, lucro:0, qtd:0, vendas:0 };
+    map[v.cliente].lucro  += profit(v);
+    map[v.cliente].qtd    += parseInt(v.qtd||1);
+    map[v.cliente].vendas += 1;
+  });
+  return Object.values(map).sort((a,b) => b.lucro-a.lucro);
+}
+
+function ccCard(c, i, maxL) {
+  const pct = maxL > 0 ? Math.max(0,(c.lucro/maxL)*100) : 0;
+  return `<div class="cc">
+    <div class="cc-rank">${i+1}</div>
+    <div class="cc-name">${esc(c.nome)}</div>
+    <div class="cc-count">${c.vendas} venda${c.vendas!==1?'s':''} · ${c.qtd} item${c.qtd!==1?'s':''}</div>
+    <div class="cc-profit">${fmtR(c.lucro)}</div>
+    <div class="cc-bar-bg"><div class="cc-bar" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+function renderClientsCard() {
+  const ranked = getClientsRanked();
+  const top    = ranked.slice(0,3);
+  const maxL   = top[0]?.lucro || 0;
+  const grid   = document.getElementById('clients-dash');
+  if (!top.length) {
+    grid.innerHTML = `<div class="empty panel" style="grid-column:span 3"><div class="empty-ic">◎</div><div class="empty-t">Nenhum cliente ainda</div></div>`;
+    return;
+  }
+  grid.innerHTML = top.map((c,i) => ccCard(c,i,maxL)).join('');
+}
+
+function renderClients() {
+  const ranked = getClientsRanked();
+  const full   = document.getElementById('clients-full');
+  const empty  = document.getElementById('clients-empty');
+  if (!ranked.length) { full.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  const maxL = ranked[0]?.lucro||0;
+  full.innerHTML = ranked.map((c,i) => ccCard(c,i,maxL)).join('');
+}
+
+/* ── Escape ── */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Keyboard ── */
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+
+/* ── Init ── */
+setConn('offline');
+fetchAll();
+setupRealtime();
+</script>
+</body>
+</html>
